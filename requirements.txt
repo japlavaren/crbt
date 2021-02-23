@@ -1,0 +1,6 @@
+mysqlclient
+mypy
+python-binance
+python-dotenv
+sqlalchemy
+Twisted
