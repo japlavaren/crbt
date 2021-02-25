@@ -22,7 +22,9 @@ class TestingApi(Api):
     def buy_order(self, symbol: str, price: Decimal, amount: Decimal) -> Trade:
         assert self._kline is not None
         quantity: Decimal = round(amount / price, self.PRECISION)
-        trade = Trade(symbol, price, quantity, self._order_id, price, buy_order_time=self._kline.close_time, message={})
+        trade = Trade()
+        trade.set_buy_order(symbol, price, quantity, self._order_id, price, buy_order_time=self._kline.close_time,
+                            buy_message={})
         self._trades.append(trade)
 
         # trade is immediately bought when price is higher than kline price

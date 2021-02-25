@@ -3,6 +3,7 @@ from functools import lru_cache
 from typing import List, Optional
 
 from crbt.dto.position import Position
+from crbt.dto.trade import Trade
 
 
 class Positions:
@@ -34,6 +35,29 @@ class Positions:
                 return position
         else:
             return None
+
+    def remove_position(self, position: Position) -> None:
+        assert position.sell_only
+        self._positions.remove(position)
+
+    def load_trades(self, trades: List[Trade]) -> None:
+        trades.sort(key=lambda t: t.position_price)
+        self._positions.sort(key=lambda p: p.price)
+
+        for trade in trades:
+            if not self._load_trade(trade):
+                # create sell only position if there is no free position
+                self._positions.append(Position(trade.position_price, trade, sell_only=True))
+
+    def _load_trade(self, trade: Trade) -> bool:
+        for position in self._positions:
+            if position.trade is None and position.price >= trade.position_price:
+                position.trade = trade
+                trade.position_price = position.price
+
+                return True
+        else:
+            return False
 
     @staticmethod
     def _create_positions(min_price: Decimal, max_price: Decimal, step_price: Decimal) -> List[Position]:
