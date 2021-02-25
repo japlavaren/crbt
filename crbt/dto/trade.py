@@ -5,8 +5,10 @@ from typing import Dict, Any
 
 from sqlalchemy import Column, DateTime, Integer, JSON, Numeric, String
 
+from crbt.dto.base import Base
 
-class Trade:
+
+class Trade(Base):
     STATUS_BUY_ORDER = 'buy-order'
     STATUS_BOUGHT = 'bought'
     STATUS_SELL_ORDER = 'sell-order'
@@ -50,6 +52,7 @@ class Trade:
     def set_buy_order(self, symbol: str, position_price: Decimal, quantity: Decimal, buy_order_id: int,
                       buy_price: Decimal, buy_order_time: datetime, buy_message: Dict[str, Any]) -> None:
         assert self.status is None
+        self.status = self.STATUS_BUY_ORDER
         self.symbol = symbol
         self.position_price = position_price
         self.quantity = quantity

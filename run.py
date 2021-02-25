@@ -1,19 +1,26 @@
 from datetime import datetime
 from decimal import Decimal
 from multiprocessing import Pool
+from random import choice
+from string import ascii_lowercase
 from typing import Any, Dict, List, Tuple
 
 from binance.client import Client
+from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import sessionmaker
 
 from crbt.api.testing_api import TestingApi
 from crbt.bot import Bot
+from crbt.dto.base import Base
 from crbt.dto.kline import Kline
 from crbt.utils import TIME_FORMAT, to_datetime
 
 
 class TestRunner:
-    def __init__(self) -> None:
-        self._client: Client = Client()
+    def __init__(self, test_db_uri: str, client: Client) -> None:
+        self._test_db_uri = test_db_uri
+        self._client: Client = client
 
     def run(self, start_time: datetime, end_time: datetime, min_profits: List[Decimal], **settings) -> None:
         klines = self._get_klines(settings['symbol'], start_time, end_time)
@@ -35,17 +42,32 @@ class TestRunner:
                   f'OPENED revenue: {stat["opened_revenue"]:.2f} USDT, trades: {stat["opened_trades"]} | '
                   f'Max investment: {stat["max_investment"]:.2f} USDT')
 
-    @staticmethod
-    def _run_bot(parameters: Tuple[Dict[str, Any], List[Kline]]) -> Dict[str, Any]:
+    def _run_bot(self, parameters: Tuple[Dict[str, Any], List[Kline]]) -> Dict[str, Any]:
         settings, klines = parameters
+        db_engine, db_name = self._create_test_db()
+        session = sessionmaker(db_engine)()
         api = TestingApi()
-        bot = Bot(api=api, **settings)
 
-        for kline in klines:
-            api.set_kline(kline)
-            bot.process(kline)
+        try:
+            bot = Bot(**settings, api=api, session=session)
 
-        return bot.statistics
+            for kline in klines:
+                api.set_kline(kline)
+                bot.process(kline)
+
+            return bot.statistics
+        finally:
+            session.close()
+            db_engine.execute(f'DROP DATABASE {db_name}')
+
+    def _create_test_db(self) -> Tuple[Engine, str]:
+        db_name = 'crbt_test_' + ''.join(choice(ascii_lowercase) for _ in range(6))
+        engine = create_engine(self._test_db_uri)
+        engine.execute(f'CREATE DATABASE {db_name}')
+        engine.execute(f'USE {db_name}')
+        Base.metadata.create_all(engine)
+
+        return engine, db_name
 
     def _get_klines(self, symbol: str, start_time: datetime, end_time: datetime) -> List[Kline]:
         data = self._client.get_historical_klines_generator(symbol, Client.KLINE_INTERVAL_1MINUTE,
@@ -64,9 +86,9 @@ class TestRunner:
 
 
 if __name__ == '__main__':
-    runner = TestRunner()
+    runner = TestRunner(test_db_uri='mysql://root:root@localhost', client=Client())
     runner.run(
-        start_time=datetime(2021, 2, 23, 11, 0),
+        start_time=datetime(2021, 2, 25, 10, 0),
         end_time=datetime.now(),
         min_profits=[Decimal(p) / 100 for p in [1, 2, 3, 4, 5]],
         symbol='SOLUSDT',

@@ -18,4 +18,4 @@ class Position:
     def trade(self, trade: Trade) -> None:
         assert self._trade is None
         assert not self.sell_only
-        self.trade = trade
+        self._trade = trade
