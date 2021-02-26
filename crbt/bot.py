@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
@@ -11,21 +11,41 @@ from crbt.dto.trade import Trade
 
 
 class Bot:
-    def __init__(self, symbol: str, min_buy_price: Decimal, max_buy_price: Decimal, step_price: Decimal,
-                 min_profit: Decimal, kline_margin: Decimal, trade_amount: Decimal, api: Api, session: Session) -> None:
+    def __init__(self, symbol, api: Api, session: Session) -> None:
         self._symbol: str = symbol
-        self._min_buy_price: Decimal = min_buy_price
-        self._max_buy_price: Decimal = max_buy_price
-        self._min_profit: Decimal = min_profit
-        self._kline_margin: Decimal = kline_margin
-        self._trade_amount: Decimal = trade_amount
+        self._min_buy_price: Optional[Decimal] = None
+        self._max_buy_price: Optional[Decimal] = None
+        self._step_price: Optional[Decimal] = None
+        self._min_profit: Optional[Decimal] = None
+        self._kline_margin: Optional[Decimal] = None
+        self._trade_amount: Optional[Decimal] = None
         self._api: Api = api
         self._session: Session = session
 
-        self._positions: Positions = self._create_positions(symbol, min_buy_price, max_buy_price, step_price)
+        self._positions: Positions = Positions()
         self._klines_history: List[Kline] = []
         self._finished_trades: List[Trade] = []
         self._max_investment: Decimal = Decimal(0)
+
+    def load_settings(self, symbol: str, min_buy_price: Decimal, max_buy_price: Decimal, step_price: Decimal,
+                      min_profit: Decimal, kline_margin: Decimal, trade_amount: Decimal) -> None:
+        if self._symbol is not None:
+            assert symbol == self._symbol
+
+        reload_positions = (min_buy_price != self._min_buy_price
+                            or max_buy_price != self._max_buy_price
+                            or step_price != self._step_price)
+
+        self._symbol = symbol
+        self._min_buy_price = min_buy_price
+        self._max_buy_price = max_buy_price
+        self._step_price = step_price
+        self._min_profit = min_profit
+        self._kline_margin = kline_margin
+        self._trade_amount = trade_amount
+
+        if reload_positions:
+            self._load_positions()
 
     @property
     def statistics(self) -> Dict[str, Any]:
@@ -58,6 +78,8 @@ class Bot:
         return sum(position.trade.bought_amount for position in self._positions.bought_positions)  # type: ignore
 
     def _buy_empty_positions(self, kline: Kline) -> None:
+        assert self._kline_margin is not None
+        assert self._trade_amount is not None
         empty_positions = self._positions.get_empty_positions_by_prices(
             min_price=kline.low_price / (1 + self._kline_margin),
             max_price=kline.high_price * (1 + self._kline_margin),
@@ -101,6 +123,8 @@ class Bot:
                 self._positions.remove_position(position)
 
     def _create_sell_orders(self) -> None:
+        assert self._min_profit is not None
+
         for position in self._positions.bought_positions:
             assert position.trade is not None
 
@@ -108,13 +132,14 @@ class Bot:
                 self._api.sell_order(position.trade, sell_price=position.trade.buy_price * (1 + self._min_profit))
                 self._session.commit()
 
-    def _create_positions(self, symbol: str, min_buy_price: Decimal, max_buy_price: Decimal, step_price: Decimal,
-                          ) -> Positions:
-        positions = Positions(min_buy_price, max_buy_price, step_price)
-        trades = self._session.query(Trade).filter(Trade.symbol == symbol, Trade.status != Trade.STATUS_SOLD).all()
+    def _load_positions(self) -> None:
+        assert self._min_buy_price is not None
+        assert self._max_buy_price is not None
+        assert self._step_price is not None
+        self._positions.create_positions(self._min_buy_price, self._max_buy_price, self._step_price)
+        trades = self._session.query(Trade).filter(Trade.symbol == self._symbol,
+                                                   Trade.status != Trade.STATUS_SOLD).all()
 
         if len(trades) != 0:
             self._positions.load_trades(trades)
             self._session.commit()
-
-        return positions

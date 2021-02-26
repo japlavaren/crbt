@@ -49,7 +49,8 @@ class TestRunner:
         api = TestingApi()
 
         try:
-            bot = Bot(**settings, api=api, session=session)
+            bot = Bot(settings['symbol'], api, session)
+            bot.load_settings(**settings)
 
             for kline in klines:
                 api.set_kline(kline)
