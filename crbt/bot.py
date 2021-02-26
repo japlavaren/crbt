@@ -11,8 +11,9 @@ from crbt.dto.trade import Trade
 
 
 class Bot:
-    def __init__(self, symbol, api: Api, session: Session) -> None:
+    def __init__(self, symbol, api: Api, db_session: Session) -> None:
         self._symbol: str = symbol
+        self._active: bool = False
         self._min_buy_price: Optional[Decimal] = None
         self._max_buy_price: Optional[Decimal] = None
         self._step_price: Optional[Decimal] = None
@@ -20,15 +21,15 @@ class Bot:
         self._kline_margin: Optional[Decimal] = None
         self._trade_amount: Optional[Decimal] = None
         self._api: Api = api
-        self._session: Session = session
+        self._db_session: Session = db_session
 
         self._positions: Positions = Positions()
         self._klines_history: List[Kline] = []
         self._finished_trades: List[Trade] = []
         self._max_investment: Decimal = Decimal(0)
 
-    def load_settings(self, symbol: str, min_buy_price: Decimal, max_buy_price: Decimal, step_price: Decimal,
-                      min_profit: Decimal, kline_margin: Decimal, trade_amount: Decimal) -> None:
+    def load_settings(self, symbol: str, active: bool, min_buy_price: Decimal, max_buy_price: Decimal,
+                      step_price: Decimal, min_profit: Decimal, kline_margin: Decimal, trade_amount: Decimal) -> None:
         if self._symbol is not None:
             assert symbol == self._symbol
 
@@ -37,6 +38,7 @@ class Bot:
                             or step_price != self._step_price)
 
         self._symbol = symbol
+        self._active = active
         self._min_buy_price = min_buy_price
         self._max_buy_price = max_buy_price
         self._step_price = step_price
@@ -57,6 +59,7 @@ class Bot:
                              for position in bought_positions)
 
         return dict(
+            symbol=self._symbol,
             min_profit=self._min_profit,
             finished_trades=len(self._finished_trades),
             finished_revenue=sum(trade.revenue for trade in self._finished_trades),
@@ -66,6 +69,7 @@ class Bot:
         )
 
     def process(self, kline: Kline) -> None:
+        assert kline.symbol == self._symbol
         self._buy_empty_positions(kline)
         self._process_api_orders()
         self._create_sell_orders()
@@ -78,6 +82,9 @@ class Bot:
         return sum(position.trade.bought_amount for position in self._positions.bought_positions)  # type: ignore
 
     def _buy_empty_positions(self, kline: Kline) -> None:
+        if not self._active:
+            return
+
         assert self._kline_margin is not None
         assert self._trade_amount is not None
         empty_positions = self._positions.get_empty_positions_by_prices(
@@ -87,8 +94,8 @@ class Bot:
 
         for position in empty_positions:
             position.trade = self._api.buy_order(self._symbol, position.price, self._trade_amount)
-            self._session.add(position.trade)
-            self._session.commit()
+            self._db_session.add(position.trade)
+            self._db_session.commit()
 
     def _process_api_orders(self) -> None:
         for order in self._api.get_orders():
@@ -105,7 +112,7 @@ class Bot:
             return
         elif order.status == Order.STATUS_FILLED and position.trade.status == Trade.STATUS_BUY_ORDER:
             position.trade.set_bought(buy_time=order.update_time, buy_price=order.price, buy_message=order.message)
-            self._session.commit()
+            self._db_session.commit()
 
     def _process_sell_order(self, order: Order) -> None:
         assert order.side == Order.SIDE_SELL
@@ -115,7 +122,7 @@ class Bot:
             return
         elif order.status == Order.STATUS_FILLED and position.trade.status == Trade.STATUS_SELL_ORDER:
             position.trade.set_sold(sell_time=order.update_time, sell_price=order.price, sell_message=order.message)
-            self._session.commit()
+            self._db_session.commit()
             self._finished_trades.append(position.trade)
             position.trade = None
 
@@ -130,16 +137,16 @@ class Bot:
 
             if position.trade.status == Trade.STATUS_BOUGHT:
                 self._api.sell_order(position.trade, sell_price=position.trade.buy_price * (1 + self._min_profit))
-                self._session.commit()
+                self._db_session.commit()
 
     def _load_positions(self) -> None:
         assert self._min_buy_price is not None
         assert self._max_buy_price is not None
         assert self._step_price is not None
         self._positions.create_positions(self._min_buy_price, self._max_buy_price, self._step_price)
-        trades = self._session.query(Trade).filter(Trade.symbol == self._symbol,
-                                                   Trade.status != Trade.STATUS_SOLD).all()
+        trades = self._db_session.query(Trade).filter(Trade.symbol == self._symbol,
+                                                      Trade.status != Trade.STATUS_SOLD).all()
 
         if len(trades) != 0:
             self._positions.load_trades(trades)
-            self._session.commit()
+            self._db_session.commit()

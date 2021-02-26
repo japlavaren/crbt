@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Numeric, String
+from sqlalchemy import Boolean, Column, Integer, Numeric, String
 
 from crbt.dto.base import Base
 
@@ -7,6 +7,7 @@ class BotSetting(Base):
     __tablename__ = 'bot_settings'
     id = Column(Integer(), primary_key=True, nullable=False)
     symbol = Column(String(10), nullable=False, unique=True)
+    active = Column(Boolean(), nullable=False)
     min_buy_price = Column(Numeric(14, 8), nullable=False)
     max_buy_price = Column(Numeric(14, 8), nullable=False)
     step_price = Column(Numeric(14, 8), nullable=False)
