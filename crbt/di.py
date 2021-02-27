@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 
+from crbt.api.binance_api import BinanceApi
 from crbt.dto.base import Base
 
 
@@ -24,3 +25,7 @@ class Di:
     @cached_property
     def binance_client(self) -> Client:
         return Client(os.getenv('API_KEY'), os.getenv('API_SECRET'))
+
+    @cached_property
+    def binance_api(self) -> BinanceApi:
+        return BinanceApi(self.binance_client)

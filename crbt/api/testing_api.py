@@ -21,6 +21,7 @@ class TestingApi(Api):
 
     def buy_order(self, symbol: str, price: Decimal, amount: Decimal) -> Trade:
         assert self._kline is not None
+        assert self._kline.symbol == symbol
         quantity: Decimal = round(amount / price, self.PRECISION)
         trade = Trade()
         trade.set_buy_order(symbol, price, quantity, self._order_id, price, buy_order_time=self._kline.close_time,
@@ -36,10 +37,12 @@ class TestingApi(Api):
     def sell_order(self, trade: Trade, sell_price: Decimal) -> None:
         assert trade in self._trades
         assert self._kline is not None
+        assert trade.symbol == self._kline.symbol
         trade.set_sell_order(self._order_id, sell_price, sell_order_time=self._kline.close_time, sell_message={})
 
-    def get_orders(self) -> List[Order]:
+    def get_orders(self, symbol: str) -> List[Order]:
         assert self._kline is not None
+        assert symbol == self._kline.symbol
         orders = []
 
         for trade in self._trades:

@@ -88,8 +88,8 @@ class Bot:
         assert self._kline_margin is not None
         assert self._trade_amount is not None
         empty_positions = self._positions.get_empty_positions_by_prices(
-            min_price=kline.low_price / (1 + self._kline_margin),
-            max_price=kline.high_price * (1 + self._kline_margin),
+            min_price=kline.low_price / (1 + self._kline_margin / 100),
+            max_price=kline.high_price * (1 + self._kline_margin / 100),
         )
 
         for position in empty_positions:
@@ -98,7 +98,7 @@ class Bot:
             self._db_session.commit()
 
     def _process_api_orders(self) -> None:
-        for order in self._api.get_orders():
+        for order in self._api.get_orders(self._symbol):
             if order.side == Order.SIDE_BUY:
                 self._process_buy_order(order)
             elif order.side == Order.SIDE_SELL:
@@ -136,7 +136,7 @@ class Bot:
             assert position.trade is not None
 
             if position.trade.status == Trade.STATUS_BOUGHT:
-                self._api.sell_order(position.trade, sell_price=position.trade.buy_price * (1 + self._min_profit))
+                self._api.sell_order(position.trade, sell_price=position.trade.buy_price * (1 + self._min_profit / 100))
                 self._db_session.commit()
 
     def _load_positions(self) -> None:

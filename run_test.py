@@ -37,7 +37,7 @@ class TestRunner:
         statistics.sort(key=lambda stat: stat['finished_revenue'], reverse=True)
 
         for stat in statistics:
-            print(f'{stat["min_profit"] * 100:.1f}% | '
+            print(f'{stat["min_profit"]:.1f}% | '
                   f'FINISHED revenue: {stat["finished_revenue"]:.2f} USDT, trades: {stat["finished_trades"]} | '
                   f'OPENED revenue: {stat["opened_revenue"]:.2f} USDT, trades: {stat["opened_trades"]} | '
                   f'Max investment: {stat["max_investment"]:.2f} USDT')
@@ -91,7 +91,7 @@ if __name__ == '__main__':
     runner.run(
         start_time=datetime(2021, 2, 25, 10, 0),
         end_time=datetime.now(),
-        min_profits=[Decimal(p) / 100 for p in [1, 2, 3, 4, 5]],
+        min_profits=[1, 2, 3, 4, 5],
         symbol='SOLUSDT',
         min_buy_price=Decimal(13.63),
         max_buy_price=Decimal(14.8),

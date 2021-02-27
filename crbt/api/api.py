@@ -16,5 +16,5 @@ class Api(ABC):
         pass
 
     @abstractmethod
-    def get_orders(self) -> List[Order]:
+    def get_orders(self, symbol: str) -> List[Order]:
         pass

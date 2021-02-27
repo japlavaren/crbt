@@ -8,7 +8,6 @@ from binance.websockets import BinanceSocketManager
 from sqlalchemy.orm import Session, sessionmaker
 
 from crbt.api.api import Api
-from crbt.api.testing_api import TestingApi
 from crbt.bot import Bot
 from crbt.di import Di
 from crbt.dto.bot_settings import BotSetting
@@ -91,14 +90,17 @@ class BotRunner:
 
     def _process_socket_message(self, message: dict) -> None:
         data = message['data']['k']
-        kline = Kline(symbol=data['s'], open_time=to_datetime(data['k']['t']), close_time=to_datetime(data['k']['T']),
-                      open_price=Decimal(data['o']), close_price=Decimal(data['c']), high_price=Decimal(data['h']),
+        kline = Kline(symbol=data['s'],
+                      open_time=to_datetime(data['t']),
+                      close_time=to_datetime(data['T']),
+                      open_price=Decimal(data['o']),
+                      close_price=Decimal(data['c']),
+                      high_price=Decimal(data['h']),
                       low_price=Decimal(data['l']))
         self._klines_queue.put_nowait(kline)
 
 
 if __name__ == '__main__':
     di = Di()
-    session = sessionmaker(di.db_engine)()
-    runner = BotRunner(di.binance_client, TestingApi(), session)
+    runner = BotRunner(di.binance_client, di.binance_api, db_session=sessionmaker(di.db_engine)())
     runner.run()
