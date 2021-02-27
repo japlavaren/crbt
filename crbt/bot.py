@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
@@ -11,8 +11,9 @@ from crbt.dto.trade import Trade
 
 
 class Bot:
-    def __init__(self, symbol, api: Api, db_session: Session) -> None:
+    def __init__(self, symbol, get_available_amount: Callable[[], Decimal], api: Api, db_session: Session) -> None:
         self._symbol: str = symbol
+        self._get_available_amount: Callable[[], Decimal] = get_available_amount
         self._active: bool = False
         self._min_buy_price: Optional[Decimal] = None
         self._max_buy_price: Optional[Decimal] = None
@@ -27,6 +28,8 @@ class Bot:
         self._klines_history: List[Kline] = []
         self._finished_trades: List[Trade] = []
         self._max_investment: Decimal = Decimal(0)
+        self._out_of_range: bool = False
+        self._no_funds: bool = False
 
     def load_settings(self, symbol: str, active: bool, min_buy_price: Decimal, max_buy_price: Decimal,
                       step_price: Decimal, min_profit: Decimal, kline_margin: Decimal, trade_amount: Decimal) -> None:
@@ -66,23 +69,28 @@ class Bot:
             opened_trades=len(bought_positions),
             opened_revenue=opened_revenue,
             max_investment=self._max_investment,
+            out_of_range=self._out_of_range,
+            no_funds=self._no_funds,
         )
 
     def process(self, kline: Kline) -> None:
         assert kline.symbol == self._symbol
+        self._klines_history.append(kline)
+        self._out_of_range = self._min_buy_price > kline.close_price > self._max_buy_price
+        self._no_funds = self._get_available_amount() < self._trade_amount
+
         self._buy_empty_positions(kline)
         self._process_api_orders()
         self._create_sell_orders()
-        self._klines_history.append(kline)
-        self._max_investment = max(self._investment, self._max_investment)
+        self._max_investment = max(self.investment, self._max_investment)
 
     @property
-    def _investment(self) -> Decimal:
+    def investment(self) -> Decimal:
         # position.trade is defined as optional but in bought_positions is always present
         return sum(position.trade.bought_amount for position in self._positions.bought_positions)  # type: ignore
 
     def _buy_empty_positions(self, kline: Kline) -> None:
-        if not self._active:
+        if not self._active or self._out_of_range or self._no_funds:
             return
 
         assert self._kline_margin is not None

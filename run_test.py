@@ -18,6 +18,8 @@ from crbt.utils import TIME_FORMAT, to_datetime
 
 
 class TestRunner:
+    _UNLIMITED_AMOUNT = Decimal(99_999)
+
     def __init__(self, test_db_uri: str, client: Client) -> None:
         self._test_db_uri = test_db_uri
         self._client: Client = client
@@ -45,11 +47,11 @@ class TestRunner:
     def _run_bot(self, parameters: Tuple[Dict[str, Any], List[Kline]]) -> Dict[str, Any]:
         settings, klines = parameters
         db_engine, db_name = self._create_test_db()
-        session = sessionmaker(db_engine)()
+        db_session = sessionmaker(db_engine)()
         api = TestingApi()
 
         try:
-            bot = Bot(settings['symbol'], api, session)
+            bot = Bot(settings['symbol'], self._get_available_amount, api, db_session)
             bot.load_settings(**settings, active=True)
 
             for kline in klines:
@@ -58,8 +60,12 @@ class TestRunner:
 
             return bot.statistics
         finally:
-            session.close()
+            db_session.close()
             db_engine.execute(f'DROP DATABASE {db_name}')
+
+    @classmethod
+    def _get_available_amount(cls) -> Decimal:
+        return cls._UNLIMITED_AMOUNT
 
     def _create_test_db(self) -> Tuple[Engine, str]:
         db_name = 'crbt_test_' + ''.join(choice(ascii_lowercase) for _ in range(6))

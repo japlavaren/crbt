@@ -11,6 +11,7 @@ class BotSetting(Base):
     min_buy_price = Column(Numeric(14, 8), nullable=False)
     max_buy_price = Column(Numeric(14, 8), nullable=False)
     step_price = Column(Numeric(14, 8), nullable=False)
+    stop_loss = Column(Numeric(14, 8), nullable=False)
     min_profit = Column(Numeric(4, 2), nullable=False)
     kline_margin = Column(Numeric(4, 2), nullable=False)
     trade_amount = Column(Numeric(4, 2), nullable=False)

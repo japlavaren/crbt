@@ -1,3 +1,4 @@
+from argparse import ArgumentParser
 from decimal import Decimal
 from queue import Empty, Queue
 from time import time
@@ -25,10 +26,12 @@ class BotRunner:
         self._db_session: Session = db_session
         self._bots: Dict[str, Bot] = {}
         self._klines_queue: Queue = Queue()
+        self._total_amount: Decimal = Decimal(0)
         self._reload_settings_time: float = 0
         self._report_time: float = 0
 
-    def run(self) -> None:
+    def run(self, total_amount: Decimal) -> None:
+        self._total_amount = total_amount
         self._load_settings()
         self._socket_manager.start()
         self._reload_settings_time = self._report_time = time()
@@ -56,9 +59,17 @@ class BotRunner:
             statistics.sort(key=lambda stat: stat['symbol'])
 
             for stat in statistics:
-                print(f'{stat["symbol"]} | '
-                      f'FINISHED revenue: {stat["finished_revenue"]:.2f} USDT, trades: {stat["finished_trades"]} | '
-                      f'OPENED revenue: {stat["opened_revenue"]:.2f} USDT, trades: {stat["opened_trades"]}')
+                parts = [
+                    stat['symbol'],
+                    f'FINISHED revenue: {stat["finished_revenue"]:.2f} USDT, trades: {stat["finished_trades"]}',
+                    f'OPENED revenue: {stat["opened_revenue"]:.2f} USDT, trades: {stat["opened_trades"]}',
+                ]
+                if stat['out_of_range']:
+                    parts.append('OUT OF RANGE')
+                if stat['no_funds']:
+                    parts.append('NO FUNDS')
+
+                print(' | '.join(parts))
 
             self._report_time = time()
 
@@ -80,13 +91,16 @@ class BotRunner:
             symbol = bot_settings.symbol
 
             if symbol not in self._bots:
-                self._bots[symbol] = Bot(symbol, self._api, self._db_session)
+                self._bots[symbol] = Bot(symbol, self._get_available_amount, self._api, self._db_session)
 
             settings = {col.name: getattr(bot_settings, col.name) for col in bot_settings.__table__.columns}
             del settings['id']
             self._bots[symbol].load_settings(**settings)
 
             self._db_session.expire(bot_settings)
+
+    def _get_available_amount(self) -> Decimal:
+        return self._total_amount - sum(bot.investment for bot in self._bots.values())
 
     def _process_socket_message(self, message: dict) -> None:
         data = message['data']['k']
@@ -101,6 +115,11 @@ class BotRunner:
 
 
 if __name__ == '__main__':
+    parser = ArgumentParser()
+    parser.add_argument('total-amount', type=Decimal)
+    args = parser.parse_args()
+    total_amount = getattr(args, 'total-amount')
+
     di = Di()
     runner = BotRunner(di.binance_client, di.binance_api, db_session=sessionmaker(di.db_engine)())
-    runner.run()
+    runner.run(total_amount)
