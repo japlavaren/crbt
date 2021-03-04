@@ -1,7 +1,8 @@
 import math
+from datetime import datetime
 from decimal import Decimal
 from functools import lru_cache
-from typing import List
+from typing import Any, Dict, List, Tuple
 
 from binance.client import Client
 
@@ -24,11 +25,11 @@ class BinanceApi(Api):
     def __init__(self, binance_client: Client) -> None:
         self._client: Client = binance_client
 
-    def buy_order(self, symbol: str, price: Decimal, amount: Decimal) -> Trade:
+    def limit_buy(self, symbol: str, position: int, price: Decimal, amount: Decimal) -> Trade:
         quantity: Decimal = round(amount / price, self._get_quantity_precision(symbol))  # type: ignore
         info = self._client.order_limit_buy(symbol=symbol, price=price, quantity=quantity)
         trade = Trade()
-        trade.set_buy_order(symbol=info['symbol'], position_price=price, quantity=Decimal(info['origQty']),
+        trade.set_buy_order(symbol=info['symbol'], position=position, quantity=Decimal(info['origQty']),
                             buy_order_id=info['orderId'], buy_price=Decimal(info['price']),
                             buy_order_time=to_datetime(info['transactTime']), buy_message=info)
 
@@ -38,11 +39,19 @@ class BinanceApi(Api):
 
         return trade
 
-    def sell_order(self, trade: Trade, sell_price: Decimal) -> None:
+    def limit_sell(self, trade: Trade, sell_price: Decimal) -> None:
         price: Decimal = round(sell_price, self._get_price_precision(trade.symbol))  # type: ignore
         info = self._client.order_limit_sell(symbol=trade.symbol, price=price, quantity=trade.quantity)
         trade.set_sell_order(sell_order_id=info['orderId'], sell_price=Decimal(info['price']),
                              sell_order_time=to_datetime(info['transactTime']), sell_message=info)
+
+    def market_sell(self, symbol: str, quantity: Decimal) -> Tuple[datetime, Decimal, Dict[str, Any]]:
+        quantity = round(quantity, self._get_quantity_precision(symbol))  # type: ignore
+        info = self._client.order_market_sell(symbol=symbol, quantity=quantity)
+        sell_time = to_datetime(info['transactTime'])
+        sell_price = Decimal(info['cummulativeQuoteQty']) / Decimal(info['executedQty'])
+
+        return sell_time, sell_price, info
 
     def get_orders(self, symbol: str) -> List[Order]:
         return [Order(

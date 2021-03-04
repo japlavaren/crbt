@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
+from datetime import datetime
 from decimal import Decimal
-from typing import List
+from typing import Any, Dict, List, Tuple
 
 from crbt.dto.order import Order
 from crbt.dto.trade import Trade
@@ -8,11 +9,15 @@ from crbt.dto.trade import Trade
 
 class Api(ABC):
     @abstractmethod
-    def buy_order(self, symbol: str, price: Decimal, amount: Decimal) -> Trade:
+    def limit_buy(self, symbol: str, position: int, price: Decimal, amount: Decimal) -> Trade:
         pass
 
     @abstractmethod
-    def sell_order(self, trade: Trade, sell_price: Decimal) -> None:
+    def limit_sell(self, trade: Trade, sell_price: Decimal) -> None:
+        pass
+
+    @abstractmethod
+    def market_sell(self, symbol: str, quantity: Decimal) -> Tuple[datetime, Decimal, Dict[str, Any]]:
         pass
 
     @abstractmethod

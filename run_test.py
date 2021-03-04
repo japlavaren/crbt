@@ -36,29 +36,35 @@ class TestRunner:
         with Pool(processes=8) as pool:
             statistics = pool.map(self._run_bot, parameters)
 
-        statistics.sort(key=lambda stat: stat['finished_revenue'], reverse=True)
+        statistics.sort(key=lambda stat: stat['total_revenue'], reverse=True)
 
         for stat in statistics:
-            print(f'{stat["min_profit"]:.1f}% | '
-                  f'FINISHED revenue: {stat["finished_revenue"]:.2f} USDT, trades: {stat["finished_trades"]} | '
-                  f'OPENED revenue: {stat["opened_revenue"]:.2f} USDT, trades: {stat["opened_trades"]} | '
-                  f'Max investment: {stat["max_investment"]:.2f} USDT')
+            print(' | '.join([
+                f'{stat["symbol"]} {stat["min_profit"]:.1f}%',
+                f'revenue: {stat["total_revenue"]:.2f} USDT',
+                f'CLOSED revenue: {stat["closed_revenue"]:.2f} USDT, trades: {stat["closed_trades"]}',
+                f'OPENED revenue: {stat["opened_revenue"]:.2f} USDT, trades: {stat["opened_trades"]}',
+                f'Max investment: {stat["max_investment"]:.2f} USDT',
+            ]))
 
     def _run_bot(self, parameters: Tuple[Dict[str, Any], List[Kline]]) -> Dict[str, Any]:
         settings, klines = parameters
         db_engine, db_name = self._create_test_db()
         db_session = sessionmaker(db_engine)()
-        api = TestingApi()
+        api = TestingApi(db_session)
 
         try:
-            bot = Bot(settings['symbol'], self._get_available_amount, api, db_session)
-            bot.load_settings(**settings, active=True)
+            bot = Bot(**settings, active=True, stop_loss=Decimal(0), get_available_amount=self._get_available_amount,
+                      db_session=db_session, api=api)
 
             for kline in klines:
                 api.set_kline(kline)
                 bot.process(kline)
 
-            return bot.statistics
+            statistics = bot.statistics
+            statistics['min_profit'] = settings['min_profit']
+
+            return statistics
         finally:
             db_session.close()
             db_engine.execute(f'DROP DATABASE {db_name}')
@@ -95,13 +101,13 @@ class TestRunner:
 if __name__ == '__main__':
     runner = TestRunner(test_db_uri='mysql://root:root@localhost', client=Client())
     runner.run(
-        start_time=datetime(2021, 2, 25, 10, 0),
+        start_time=datetime(2021, 3, 4, 0, 0),
         end_time=datetime.now(),
-        min_profits=[1, 2, 3, 4, 5],
-        symbol='SOLUSDT',
-        min_buy_price=Decimal(13.63),
-        max_buy_price=Decimal(14.8),
+        min_profits=[Decimal(3)],
+        symbol='ADAUSDT',
+        min_buy_price=Decimal(.96),
+        max_buy_price=Decimal(1.5),
         step_price=Decimal(0.01),
         kline_margin=Decimal(1),
-        trade_amount=Decimal(10),
+        trade_amount=Decimal(12),
     )

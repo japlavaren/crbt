@@ -3,7 +3,7 @@ from decimal import Decimal
 from functools import cached_property
 from typing import Dict, Any
 
-from sqlalchemy import Column, DateTime, Integer, JSON, Numeric, String
+from sqlalchemy import Column, DateTime, Index, Integer, JSON, Numeric, String
 
 from crbt.dto.base import Base
 
@@ -16,10 +16,9 @@ class Trade(Base):
 
     _COMMISSION = Decimal('0.2') / 100
 
-    __tablename__ = 'trades'
     id = Column(Integer(), primary_key=True, nullable=False)
     symbol = Column(String(10), nullable=False)
-    position_price = Column(Numeric(14, 8), nullable=False)
+    position = Column(Integer(), nullable=False)
     status = Column(String(10), nullable=False)
     quantity = Column(Numeric(14, 8), nullable=False)
     buy_order_id = Column(Integer(), nullable=False)
@@ -32,6 +31,10 @@ class Trade(Base):
     sell_order_time = Column(DateTime())
     sell_message = Column(JSON())
     sell_time = Column(DateTime())
+    __tablename__ = 'trades'
+    __table_args__ = (
+        Index('symbol_status_position', symbol, status, position),
+    )
 
     @property
     def revenue(self) -> Decimal:
@@ -49,12 +52,12 @@ class Trade(Base):
 
         return current_amount - self.bought_amount - commission
 
-    def set_buy_order(self, symbol: str, position_price: Decimal, quantity: Decimal, buy_order_id: int,
+    def set_buy_order(self, symbol: str, position: int, quantity: Decimal, buy_order_id: int,
                       buy_price: Decimal, buy_order_time: datetime, buy_message: Dict[str, Any]) -> None:
         assert self.status is None
         self.status = self.STATUS_BUY_ORDER
         self.symbol = symbol
-        self.position_price = position_price
+        self.position = position
         self.quantity = quantity
         self.buy_order_id = buy_order_id
         self.buy_price = buy_price
@@ -77,8 +80,13 @@ class Trade(Base):
         self.sell_order_time = sell_order_time
         self.sell_message = sell_message
 
-    def set_sold(self, sell_time: datetime, sell_price: Decimal, sell_message: Dict[str, Any]) -> None:
-        assert self.status == self.STATUS_SELL_ORDER
+    def set_sold(self, sell_time: datetime, sell_price: Decimal, sell_message: Dict[str, Any], force: bool = False,
+                 ) -> None:
+        if force:
+            assert self.status in [self.STATUS_BOUGHT, self.STATUS_SELL_ORDER]
+        else:
+            assert self.status == self.STATUS_SELL_ORDER
+
         self.status = self.STATUS_SOLD
         self.sell_time = sell_time
         self.sell_price = sell_price

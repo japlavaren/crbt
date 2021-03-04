@@ -7,12 +7,14 @@ from typing import Dict, List
 from binance.client import Client
 from binance.websockets import BinanceSocketManager
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.sql import func
 
 from crbt.api.api import Api
 from crbt.bot import Bot
 from crbt.di import Di
 from crbt.dto.bot_settings import BotSetting
 from crbt.dto.kline import Kline
+from crbt.dto.trade import Trade
 from crbt.utils import to_datetime
 
 
@@ -41,10 +43,9 @@ class BotRunner:
 
             try:
                 kline = self._klines_queue.get(timeout=1)
+                self._bots[kline.symbol].process(kline)
             except Empty:
                 pass
-            else:
-                self._bots[kline.symbol].process(kline)
 
             self._report()
 
@@ -60,9 +61,10 @@ class BotRunner:
 
             for stat in statistics:
                 parts = [
-                    stat['symbol'],
-                    f'FINISHED revenue: {stat["finished_revenue"]:.2f} USDT, trades: {stat["finished_trades"]}',
+                    f'{stat["symbol"]} revenue: {stat["total_revenue"]:.2f} USDT',
+                    f'CLOSED revenue: {stat["closed_revenue"]:.2f} USDT, trades: {stat["closed_trades"]}',
                     f'OPENED revenue: {stat["opened_revenue"]:.2f} USDT, trades: {stat["opened_trades"]}',
+                    f'Max investment: {stat["max_investment"]:.2f} USDT',
                 ]
                 if stat['out_of_range']:
                     parts.append('OUT OF RANGE')
@@ -89,18 +91,23 @@ class BotRunner:
 
         for bot_settings in bots_settings:
             symbol = bot_settings.symbol
-
-            if symbol not in self._bots:
-                self._bots[symbol] = Bot(symbol, self._get_available_amount, self._api, self._db_session)
-
             settings = {col.name: getattr(bot_settings, col.name) for col in bot_settings.__table__.columns}
             del settings['id']
-            self._bots[symbol].load_settings(**settings)
+
+            if symbol not in self._bots:
+                self._bots[symbol] = Bot(**settings, get_available_amount=self._get_available_amount,
+                                         db_session=self._db_session, api=self._api)
+            else:
+                self._bots[symbol].load_settings(**settings)
 
             self._db_session.expire(bot_settings)
 
     def _get_available_amount(self) -> Decimal:
-        return self._total_amount - sum(bot.investment for bot in self._bots.values())
+        query = self._db_session.query(func.sum(Trade.buy_price).label('investment'))
+        query.filter(Trade.status.in_([Trade.STATUS_BUY_ORDER, Trade.STATUS_BOUGHT, Trade.STATUS_SELL_ORDER]))
+        investment = query.first()[0]
+
+        return self._total_amount - investment
 
     def _process_socket_message(self, message: dict) -> None:
         data = message['data']['k']
@@ -118,8 +125,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('total-amount', type=Decimal)
     args = parser.parse_args()
-    total_amount = getattr(args, 'total-amount')
 
     di = Di()
     runner = BotRunner(di.binance_client, di.binance_api, db_session=sessionmaker(di.db_engine)())
-    runner.run(total_amount)
+    runner.run(total_amount=getattr(args, 'total-amount'))
