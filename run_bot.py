@@ -107,6 +107,9 @@ class BotRunner:
         query.filter(Trade.status.in_([Trade.STATUS_BUY_ORDER, Trade.STATUS_BOUGHT, Trade.STATUS_SELL_ORDER]))
         investment = query.first()[0]
 
+        if investment is None:  # not trades in db yet
+            investment = 0
+
         return self._total_amount - investment
 
     def _process_socket_message(self, message: dict) -> None:
