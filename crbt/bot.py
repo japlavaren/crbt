@@ -56,6 +56,7 @@ class Bot:
             ''',
             dict(symbol=self._symbol, sold=Trade.STATUS_SOLD)
         ).first()
+        closed_revenue = Decimal(closed.revenue or 0)
 
         last_price = self._last_kline.close_price
         opened = self._db_session.execute(
@@ -66,6 +67,7 @@ class Bot:
             dict(symbol=self._symbol, current_price=last_price, bought=Trade.STATUS_BOUGHT,
                  sell_order=Trade.STATUS_SELL_ORDER)
         ).first()
+        opened_revenue = Decimal(opened.revenue or 0)
 
         invested = self._db_session.execute(
             '''
@@ -84,9 +86,9 @@ class Bot:
 
         return dict(
             symbol=self._symbol,
-            total_revenue=closed.revenue + opened.revenue,
-            closed_trades=closed.trades, closed_revenue=closed.revenue,
-            opened_trades=opened.trades, opened_revenue=opened.revenue,
+            total_revenue=closed_revenue + opened_revenue,
+            closed_trades=closed.trades, closed_revenue=closed_revenue,
+            opened_trades=opened.trades, opened_revenue=opened_revenue,
             max_investment=invested.max_investment,
             out_of_range=not self._min_buy_price <= last_price <= self._max_buy_price,
             no_funds=self._get_available_amount() < self._trade_amount,
