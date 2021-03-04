@@ -20,6 +20,7 @@ class BinanceApi(Api):
     _ORDER_STATUSES = {
         'NEW': Order.STATUS_NEW,
         'FILLED': Order.STATUS_FILLED,
+        'CANCELED': Order.STATUS_CANCELED,
     }
 
     def __init__(self, binance_client: Client) -> None:
