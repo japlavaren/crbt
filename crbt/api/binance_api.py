@@ -21,6 +21,7 @@ class BinanceApi(Api):
         'NEW': Order.STATUS_NEW,
         'FILLED': Order.STATUS_FILLED,
         'CANCELED': Order.STATUS_CANCELED,
+        'PARTIALLY_FILLED': Order.STATUS_PARTIALLY_FILLED,
     }
 
     def __init__(self, binance_client: Client) -> None:

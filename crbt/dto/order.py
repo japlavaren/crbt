@@ -10,6 +10,7 @@ class Order:
     STATUS_NEW = 'new'
     STATUS_FILLED = 'filled'
     STATUS_CANCELED = 'canceled'
+    STATUS_PARTIALLY_FILLED = 'partially-filled'
 
     def __init__(self, symbol: str, side: str, status: str, order_id: int, price: Decimal, original_qty: Decimal,
                  executed_qty: Decimal, time: datetime, update_time: datetime, message: Dict[str, Any]) -> None:
