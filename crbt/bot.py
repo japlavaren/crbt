@@ -73,12 +73,10 @@ class Bot:
             '''
             SELECT MAX(amount) AS max_investment FROM (
                 SELECT SUM(v.buy_price * v.quantity) AS amount
-                FROM trades AS t
+                FROM (SELECT buy_time, symbol FROM trades WHERE symbol = :symbol GROUP BY buy_time) AS t
                 JOIN trades AS v ON v.symbol = t.symbol AND v.buy_time IS NOT NULL AND v.buy_time <= t.buy_time
                     AND (v.sell_time IS NULL OR v.sell_time >= t.buy_time)
-                WHERE t.symbol = :symbol
                 GROUP BY t.buy_time
-                ORDER BY t.buy_time
             ) AS s
             ''',
             dict(symbol=self._symbol)
