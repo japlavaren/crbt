@@ -1,3 +1,4 @@
+import sys
 from argparse import ArgumentParser
 from decimal import Decimal
 from queue import Empty, Queue
@@ -39,15 +40,18 @@ class BotRunner:
         self._reload_settings_time = self._report_time = time()
 
         while True:
-            self._reload_settings()
-
             try:
-                kline = self._klines_queue.get(timeout=1)
-                self._bots[kline.symbol].process(kline)
-            except Empty:
-                pass
+                self._reload_settings()
 
-            self._report()
+                try:
+                    kline = self._klines_queue.get(timeout=1)
+                    self._bots[kline.symbol].process(kline)
+                except Empty:
+                    pass
+
+                self._report()
+            except:
+                print(sys.exc_info()[0])
 
     def _reload_settings(self) -> None:
         if (time() - self._reload_settings_time) >= self._RELOAD_SETTINGS_INTERVAL:

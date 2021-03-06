@@ -159,11 +159,8 @@ class Bot:
         low_price = max(kline.low_price / self._kline_margin, self._min_buy_price)
         high_value = self._get_position_by_price(high_price)
         low_value = self._get_position_by_price(low_price)
-
-        if low_value >= high_value:
-            return []
-
         step_value = int(self._step_price * self.POSITION_MULTIPLIER)
+        assert high_value >= low_value
 
         return list(range(low_value, high_value + step_value, step_value))
 
