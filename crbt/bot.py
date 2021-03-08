@@ -125,6 +125,10 @@ class Bot:
             return
 
         kline_positions = self._get_positions(kline)
+
+        if len(kline_positions) == 0:
+            return
+
         trades_positions = [trade.position for trade in self._get_trades_by_positions(kline_positions)]
         empty_positions = [position for position in kline_positions if position not in trades_positions]
 
@@ -160,7 +164,9 @@ class Bot:
         high_value = self._get_position_by_price(high_price)
         low_value = self._get_position_by_price(low_price)
         step_value = int(self._step_price * self.POSITION_MULTIPLIER)
-        assert high_value >= low_value
+
+        if high_value <= low_value:
+            return []
 
         return list(range(low_value, high_value + step_value, step_value))
 

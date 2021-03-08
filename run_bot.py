@@ -1,4 +1,4 @@
-import sys
+import traceback
 from argparse import ArgumentParser
 from decimal import Decimal
 from queue import Empty, Queue
@@ -50,8 +50,10 @@ class BotRunner:
                     pass
 
                 self._report()
+            except KeyboardInterrupt:
+                raise
             except:
-                print(sys.exc_info()[0])
+                print(traceback.format_exc())
 
     def _reload_settings(self) -> None:
         if (time() - self._reload_settings_time) >= self._RELOAD_SETTINGS_INTERVAL:
