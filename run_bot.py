@@ -9,6 +9,7 @@ from binance.client import Client
 from binance.websockets import BinanceSocketManager
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.sql import func
+from twisted.internet import reactor
 
 from crbt.api.api import Api
 from crbt.bot import Bot
@@ -51,7 +52,10 @@ class BotRunner:
 
                 self._report()
             except KeyboardInterrupt:
-                raise
+                self._db_session.commit()
+                self._socket_manager.close()
+                reactor.stop()
+                return
             except:
                 print(traceback.format_exc())
 
